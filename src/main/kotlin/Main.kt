@@ -1,7 +1,9 @@
-fun main(args: Array<String>) {
-    println("Hello World!")
+fun main() {
+    var sum = 0
+    val numbers = readln().split("\\s+".toRegex())
+    for (number in numbers) {
+        sum += number.toInt()
+    }
 
-    // Try adding program arguments via Run/Debug configuration.
-    // Learn more about running applications: https://www.jetbrains.com/help/idea/running-applications.html.
-    println("Program arguments: ${args.joinToString()}")
+    println(sum)
 }
