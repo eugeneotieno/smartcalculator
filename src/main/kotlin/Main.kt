@@ -3,25 +3,25 @@ package calculator
 import java.math.BigInteger
 import java.util.*
 
-object Error {
-    private var TRIGGERED = false
+class Error {
+    private var triggered = false
 
     private fun printError(string: String) {
-        TRIGGERED = true
+        triggered = true
         println(string)
     }
 
     fun reset() {
-        TRIGGERED = false
+        triggered = false
     }
 
-    fun triggered() = TRIGGERED
+    fun triggered() = triggered
+
+    fun invalidExp() = printError("Invalid expression")
 
     fun unknownCMD() = printError("Unknown command")
 
     fun unknownVar() = printError("Unknown variable")
-
-    fun invalidExp() = printError("Invalid expression")
 
     fun invalidAssign() = printError("Invalid assignment")
 
@@ -34,186 +34,39 @@ object Error {
     fun zeroDiv() = printError("Cannot divide by zero")
 }
 
-object Postfix {
-    private val STACK = Stack<String>()
-    private val POSTFIX = mutableListOf<String>()
-    private var HOLD = ""
-    private var INDEX = 0
-    private var LAST = 0
-    private var INFIX = ""
-    private const val SOME_OP = "*/^"
-    private const val ALL_OP = "+-$SOME_OP"
-    private const val OP_PLUS = "()$ALL_OP"
-
-    fun convert(infix: String): Array<String> {
-        reset()
-        INFIX = infix.trim()
-        while (INFIX.contains("  ")) INFIX = INFIX.replace("  ", " ")
-        LAST = INFIX.lastIndex
-        var shouldBeOperator = false
-
-        while (!Error.triggered() && INDEX <= LAST) {
-            if (INFIX[INDEX] == ' ') INDEX++
-            if (shouldBeOperator) {
-                val op = chkMultiOp()
-                if (!Error.triggered()) operator(op.toString())
-                shouldBeOperator = false
-            } else {
-                for (i in 1..4) {
-                    if (Error.triggered() || INDEX > LAST) break
-                    val char = INFIX[INDEX]
-                    when (i) {
-                        1 -> if (char == '(') leftParen()
-                        2 -> if ("+-".contains(char)) chkMinus()
-                        3 -> if (OP_PLUS.contains(char)) Error.invalidExp() else addNumber()
-                        4 -> if (char == ')') rightParen()
-                    }
-                }
-                shouldBeOperator = true
-            }
-        }
-        if (Error.triggered()) POSTFIX.clear() else emptyStack()
-        return POSTFIX.toTypedArray()
-    }
-
-    private fun reset() {
-        if (STACK.isNotEmpty()) STACK.clear()
-        if (POSTFIX.isNotEmpty()) POSTFIX.clear()
-        if (HOLD != "") HOLD = ""
-        if (INDEX != 0) INDEX = 0
-    }
-
-    private fun chkMultiOp(): Char {
-        var count = 0
-        var op = INFIX[INDEX]
-
-        while (ALL_OP.contains(INFIX[INDEX])) {
-            INDEX++
-            count++
-            if (chkIndexError()) return ' '
-            if (ALL_OP.contains(INFIX[INDEX])) {
-                if (INFIX[INDEX] != op || SOME_OP.contains(INFIX[INDEX])) {
-                    Error.invalidExp()
-                    return ' '
-                }
-            }
-        }
-        if (op == '-' && count % 2 == 0) op = '+'
-        return op
-    }
-
-    private fun operator(op: String) {
-        when (op) {
-            "+", "-", "*", "/", "^" -> {
-                if (STACK.isEmpty() || STACK.peek() == "(" || opIsGreater(op[0])) STACK.push(op) else {
-                    while (STACK.isNotEmpty()) if (STACK.peek() != "(") POSTFIX.add(STACK.pop()) else break
-                    STACK.push(op)
-                }
-            }
-            else -> Error.invalidExp()
-        }
-    }
-
-    private fun leftParen() {
-        while (INFIX[INDEX] == '(') {
-            STACK.push(INFIX[INDEX].toString())
-            INDEX++
-            if (chkIndexError()) return
-        }
-    }
-
-    private fun chkMinus() {
-        when (INFIX[INDEX]) {
-            '+', '-' -> {
-                if (INFIX[INDEX] == '-') HOLD += '-'
-                INDEX++
-                chkIndexError()
-            }
-        }
-    }
-
-    private fun addNumber() {
-        while (INDEX <= LAST) {
-            if (!OP_PLUS.contains(INFIX[INDEX]) && INFIX[INDEX] != ' ') {
-                HOLD += INFIX[INDEX]
-                INDEX++
-            } else break
-        }
-        if (HOLD != "") {
-            POSTFIX.add(HOLD)
-            HOLD = ""
-        }
-    }
-
-    private fun rightParen() {
-        while (INFIX[INDEX] == ')') {
-            var stop = false
-            while (!stop && STACK.isNotEmpty()) {
-                POSTFIX.add(STACK.pop())
-                if (STACK.isNotEmpty()) if (STACK.peek() == "(") stop = true
-            }
-            if (STACK.isEmpty() && !stop) {
-                Error.invalidExp()
-                return
-            } else STACK.pop()
-            INDEX++
-            if (INDEX > LAST) break
-        }
-    }
-
-    private fun opIsGreater(char: Char): Boolean {
-        when (char) {
-            '+', '-' -> return false
-            '*', '/' -> return when (STACK.peek()) {
-                "+", "-" -> true
-                else -> false
-            }
-            '^' -> return when (STACK.peek()) {
-                "^" -> false
-                else -> true
-            }
-        }
-        return false
-    }
-
-    private fun emptyStack() {
-        while (STACK.isNotEmpty()) {
-            val temp = STACK.pop()
-            if (temp == "(" || temp == ")") {
-                Error.invalidExp()
-                return
-            }
-            POSTFIX.add(temp)
-        }
-    }
-
-    private fun chkIndexError(): Boolean {
-        return if (INDEX > LAST) {
-            Error.invalidExp()
-            true
-        } else false
-    }
-}
-
 const val HELP = "The program can add, subtract, multiply, and divide numerous whole numbers, save values " +
         "and supports exponentiation. Example:\na = 3\nb = 2\na + 8 * ((4 + a^b) * b + 1) - 6 / (b + 1)"
 val inputVariables = mutableMapOf<String, Int>()
 val regexVariables = Regex("[a-zA-Z]+")
 val regexDigit = Regex("\\d+")
-private val numberStack = Stack<Long>()
-private val numbersInput = mutableMapOf<String, Long>()
+
+private val numbersMap = mutableMapOf<String, BigInteger>()
+private val numbersStack = Stack<BigInteger>()
+private val errorObj = Error()
+
+private val operatorStack = Stack<String>()
+private val postfixList = mutableListOf<String>()
+private var holdVal = ""
+private var indexVal = 0
+private var lastVal = 0
+private var infixVal = ""
+private const val SOME_OP = "*/^"
+private const val ALL_OP = "+-$SOME_OP"
+private const val OP_PLUS = "()$ALL_OP"
 
 fun main() {
-    var input = readln()
+    val scanner = Scanner(System.`in`)
+    var input = scanner.nextLine()
+
     while (input != "/exit") {
         if (input != "") {
             if (input[0] != '/') {
-                if (input.contains('=')) memoryAdd(input) else doMath(Postfix.convert(input))
+                if (input.contains('=')) memoryAdd(input) else calculate(postfixFrom(input))
             } else command(input)
         }
-        input = readln()
-        if (numberStack.isNotEmpty()) numberStack.clear()
-        if (Error.triggered()) Error.reset()
+        input = scanner.nextLine()
+        if (numbersStack.isNotEmpty()) numbersStack.clear()
+        if (errorObj.triggered()) errorObj.reset()
     }
     println("Bye!")
 }
@@ -221,88 +74,231 @@ fun main() {
 private fun memoryAdd(value: String) {
     val values = value.replace(" ", "").split('=').toTypedArray()
     val sequence: CharRange = 'a'..'z'
-    if (values.size > 2) Error.invalidAssign() else {
+    if (values.size > 2) errorObj.invalidAssign() else {
         for (char in values[0]) if (!sequence.contains(char.lowercaseChar())) {
-            Error.invalidID()
+            errorObj.invalidID()
             return
         }
         when {
-            isNumber(values[1]) -> numbersInput[values[0]] = values[1].toLong()
-            memoryGet(values[1]) != null -> numbersInput[values[0]] = memoryGet(values[1]) ?: 0
-            else -> Error.invalidAssign()
+            isNumber(values[1])          -> numbersMap[values[0]] = values[1].toBigInteger()
+            memoryGet(values[1]) != null -> numbersMap[values[0]] = memoryGet(values[1]) ?: 0.toBigInteger()
+            else                         -> errorObj.invalidAssign()
         }
     }
 }
 
-private fun command(command: String) = if (command == "/help") println(HELP) else Error.unknownCMD()
+private fun command(command: String) = if (command == "/help") println(HELP) else errorObj.unknownCMD()
 
-private fun isNumber(number: String) = number.toLongOrNull() != null
+private fun isNumber(number: String) = number.toBigIntegerOrNull() != null
 
-private fun memoryGet(value: String): Long? = if (numbersInput.containsKey(value)) numbersInput[value] else null
+private fun memoryGet(value: String): BigInteger? = if (numbersMap.containsKey(value)) numbersMap[value] else null
 
-private fun doMath(postfix: Array<String>) {
-    if (!Error.triggered()) {
+private fun calculate(postfix: Array<String>) {
+    if (postfix.isNotEmpty()) {
         for (element in postfix) {
             when (element) {
                 "+", "-", "*", "/", "^" -> {
-                    val num2 = numberStack.pop().toLong()
-                    val num1 = numberStack.pop().toLong()
+                    val num2 = numbersStack.pop()
+                    val num1 = numbersStack.pop()
                     when (element) {
                         "+", "-", "*" -> operation(element[0], num1, num2)
-                        "/" -> divide(num1, num2)
-                        "^" -> exponent(num1, num2)
+                        "/"           -> divide(num1, num2)
+                        "^"           -> exponent(num1, num2)
                     }
                 }
-                else -> pushNumber(element)
+                else                    -> pushNumber(element)
             }
-            if (Error.triggered()) return
+            if (errorObj.triggered()) return
         }
-        println(numberStack.last())
+        println(numbersStack.last())
     }
 }
 
-private fun operation(op: Char, num1: Long, num2: Long) {
-    var result = num1.toBigInteger()
-    when (op) {
-        '+' -> result += num2.toBigInteger()
-        '*' -> result *= num2.toBigInteger()
-        '-' -> result -= num2.toBigInteger()
+private fun operation(op: Char, num1: BigInteger, num2: BigInteger) {
+    try {
+        var result = num1
+        when (op) {
+            '+' -> result += num2
+            '*' -> result *= num2
+            '-' -> result -= num2
+        }
+        numbersStack.push(result)
+    } catch (e: ArithmeticException) {
+        errorObj.calcTooLarge()
     }
-    if (!tooBigChk(result)) numberStack.push(result.toLong())
 }
 
-private fun tooBigChk(num: BigInteger): Boolean {
-    return if (num > Long.MAX_VALUE.toBigInteger() || num < Long.MIN_VALUE.toBigInteger()) {
-        Error.calcTooLarge()
-        true
-    } else false
+private fun divide(num1: BigInteger, num2: BigInteger) {
+    if (num2 == 0.toBigInteger()) errorObj.zeroDiv() else numbersStack.push((num1 / num2))
 }
 
-private fun divide(num1: Long, num2: Long) {
-    if (num2 == 0L) Error.zeroDiv() else numberStack.push((num1 / num2))
-}
-
-private fun exponent(num1: Long, num2: Long) {
+private fun exponent(num1: BigInteger, num2: BigInteger) {
     when {
-        num2 < 0 -> Error.negExponent()
-        num2 > Int.MAX_VALUE.toLong() -> Error.calcTooLarge()
-        num2 == 0L -> numberStack.push(1L)
-        else -> {
-            var num3 = num1.toBigInteger()
-            if (num2 > 1) {
-                repeat((num2 - 1).toInt()) {
-                    num3 *= num1.toBigInteger()
-                    if (tooBigChk(num3)) return
-                }
-            }
-            numberStack.push(num3.toLong())
+        num2 < 0.toBigInteger()             -> errorObj.negExponent()
+        num2 > Int.MAX_VALUE.toBigInteger() -> errorObj.calcTooLarge()
+        else                                -> try {
+            val result = num1.pow(num2.toInt())
+            numbersStack.push(result)
+        } catch (e: ArithmeticException) {
+            errorObj.calcTooLarge()
         }
     }
 }
 
 private fun pushNumber(string: String) {
-    val num: Long? = if (isNumber(string)) string.toLong() else memoryGet(string)
-    if (num == null) Error.unknownVar() else numberStack.push(num.toLong())
+    val num: BigInteger? = if (isNumber(string)) string.toBigInteger() else memoryGet(string)
+    if (num == null) errorObj.unknownVar() else numbersStack.push(num)
+}
+
+fun postfixFrom(infix: String): Array<String> {
+    reset()
+    infixVal = infix.trim()
+    while (infixVal.contains("  ")) infixVal = infixVal.replace("  ", " ")
+    lastVal = infixVal.lastIndex
+    var shouldBeOperator = false
+
+    while (!errorObj.triggered() && indexVal <= lastVal) {
+        if (infixVal[indexVal] == ' ') indexVal++
+        if (shouldBeOperator) {
+            val op = chkMultiOp()
+            if (!errorObj.triggered()) operator(op.toString())
+            shouldBeOperator = false
+        } else {
+            for (i in 1..4) {
+                if (errorObj.triggered() || indexVal > lastVal) break
+                val char = infixVal[indexVal]
+                when (i) {
+                    1 -> if (char == '(') leftParen()
+                    2 -> if ("+-".contains(char)) chkMinus()
+                    3 -> if (OP_PLUS.contains(char)) errorObj.invalidExp() else addNumber()
+                    4 -> if (char == ')') rightParen()
+                }
+            }
+            shouldBeOperator = true
+        }
+    }
+    if (!errorObj.triggered()) emptyStack()
+    if (errorObj.triggered()) postfixList.clear()
+    return postfixList.toTypedArray()
+}
+
+private fun reset() {
+    if (operatorStack.isNotEmpty()) operatorStack.clear()
+    if (postfixList.isNotEmpty()) postfixList.clear()
+    if (errorObj.triggered()) errorObj.reset()
+    if (holdVal != "") holdVal = ""
+    if (indexVal != 0) indexVal = 0
+}
+
+private fun chkMultiOp(): Char {
+    var count = 0
+    var op = infixVal[indexVal]
+
+    while (ALL_OP.contains(infixVal[indexVal])) {
+        indexVal++
+        count++
+        if (chkIndexERROR()) return ' '
+        if (ALL_OP.contains(infixVal[indexVal])) {
+            if (infixVal[indexVal] != op || SOME_OP.contains(infixVal[indexVal])) {
+                errorObj.invalidExp()
+                return ' '
+            }
+        }
+    }
+    if (op == '-' && count % 2 == 0) op = '+'
+    return op
+}
+
+private fun operator(op: String) {
+    when (op) {
+        "+", "-", "*", "/", "^" -> {
+            if (operatorStack.isEmpty() || operatorStack.peek() == "(" || opIsGreater(op[0])) operatorStack.push(op) else {
+                while (operatorStack.isNotEmpty()) if (operatorStack.peek() != "(") postfixList.add(operatorStack.pop()) else break
+                operatorStack.push(op)
+            }
+        }
+        else                    -> errorObj.invalidExp()
+    }
+}
+
+private fun leftParen() {
+    while (infixVal[indexVal] == '(') {
+        operatorStack.push(infixVal[indexVal].toString())
+        indexVal++
+        if (chkIndexERROR()) return
+    }
+}
+
+private fun chkMinus() {
+    when (infixVal[indexVal]) {
+        '+', '-' -> {
+            if (infixVal[indexVal] == '-') holdVal += '-'
+            indexVal++
+            chkIndexERROR()
+        }
+    }
+}
+
+private fun addNumber() {
+    while (indexVal <= lastVal) {
+        if (!OP_PLUS.contains(infixVal[indexVal]) && infixVal[indexVal] != ' ') {
+            holdVal += infixVal[indexVal]
+            indexVal++
+        } else break
+    }
+    if (holdVal != "") {
+        postfixList.add(holdVal)
+        holdVal = ""
+    }
+}
+
+private fun rightParen() {
+    while (infixVal[indexVal] == ')') {
+        var stop = false
+        while (!stop && operatorStack.isNotEmpty()) {
+            postfixList.add(operatorStack.pop())
+            if (operatorStack.isNotEmpty()) if (operatorStack.peek() == "(") stop = true
+        }
+        if (operatorStack.isEmpty() && !stop) {
+            errorObj.invalidExp()
+            return
+        } else operatorStack.pop()
+        indexVal++
+        if (indexVal > lastVal) break
+    }
+}
+
+private fun opIsGreater(char: Char): Boolean {
+    when (char) {
+        '+', '-' -> return false
+        '*', '/' -> return when (operatorStack.peek()) {
+            "+", "-" -> true
+            else     -> false
+        }
+        '^'      -> return when (operatorStack.peek()) {
+            "^"  -> false
+            else -> true
+        }
+    }
+    return false
+}
+
+private fun emptyStack() {
+    while (operatorStack.isNotEmpty()) {
+        val temp = operatorStack.pop()
+        if (temp == "(" || temp == ")") {
+            errorObj.invalidExp()
+            return
+        }
+        postfixList.add(temp)
+    }
+}
+
+private fun chkIndexERROR(): Boolean {
+    return if (indexVal > lastVal) {
+        errorObj.invalidExp()
+        true
+    } else false
 }
 
 
