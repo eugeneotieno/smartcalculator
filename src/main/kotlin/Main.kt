@@ -1,8 +1,9 @@
 package calculator
 
-import java.lang.NumberFormatException
-
 const val HELP = """The program calculates the sum of numbers"""
+val inputVariables = mutableMapOf<String, Int>()
+val regexVariables = Regex("[a-zA-Z]+")
+val regexDigit = Regex("\\d+")
 
 fun main() {
     start()
@@ -23,7 +24,36 @@ fun start() {
                 }
                 else -> {
                     if (input.contains("/"))  println("Unknown command")
-                    else doCalculate(input)
+                    else {
+
+                        if (input.contains("=")) {
+                            val newVariable = input.split("=")
+                            if (newVariable.size == 2) {
+                                if (regexVariables.matches(newVariable[0].trim())) {
+                                    if (!regexDigit.matches(newVariable[1].trim())) {
+                                        if (inputVariables.containsKey(newVariable[1].trim())) {
+                                            inputVariables[newVariable[0].trim()] = inputVariables[newVariable[1].trim()]!!
+                                        } else {
+                                            println("Invalid assignment")
+                                        }
+                                    } else {
+                                        try {
+                                            val num = newVariable[1].trim().toInt()
+                                            inputVariables[newVariable[0].trim()] = num
+                                        } catch (e: NumberFormatException) {
+                                            println("Invalid assignment")
+                                        }
+                                    }
+                                } else {
+                                    println("Invalid identifier")
+                                }
+                            } else {
+                                println("Invalid assignment")
+                            }
+                        } else {
+                            doCalculate(input)
+                        }
+                    }
                 }
             }
         }
@@ -36,11 +66,15 @@ fun doCalculate(input: String) {
     val items = input.split("\\s+".toRegex())
     for (item in items) {
         if (result == 0) {
-            try {
-                result = item.toInt()
+            result = try {
+                item.toInt()
             } catch (e: NumberFormatException) {
-                println("Invalid expression")
-                break
+                if (regexVariables.matches(item) && inputVariables.containsKey(item)) {
+                    inputVariables[item]!!
+                } else {
+                    println("Unknown variable")
+                    break
+                }
             }
         } else {
             if (isNumeric(item)) {
@@ -53,12 +87,18 @@ fun doCalculate(input: String) {
                     break
                 }
             } else {
-                val regex = Regex("[+-]+")
-                if (regex.matches(item)) {
+                val regexSign = Regex("[+-]+")
+                if (regexSign.matches(item)) {
                     sign = getSign(item)
                 } else {
-                    println("Invalid expression")
-                    break
+                    if (regexVariables.matches(item) && inputVariables.containsKey(item)) {
+                        val num = inputVariables[item]!!
+                        if (sign == "+") result += num
+                        else result -= num
+                    } else {
+                        println("Unknown variable")
+                        break
+                    }
                 }
             }
         }
